@@ -1,0 +1,321 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Lavender Birthday Surprise</title>
+<style>
+  :root{
+    --bg1: #efe7fb; /* pale lavender */
+    --bg2: #e6d9fa;
+    --bg3: #f5eefe;
+    --accent: #9b6fd6; /* purple accent */
+    --text: #4b2b5a;
+  }
+
+  html,body{height:100%;margin:0;font-family:Inter,system-ui,Segoe UI,Roboto,"Helvetica Neue",Arial}
+  body{
+    display:grid;
+    place-items:center;
+    overflow:hidden;
+    background: linear-gradient(120deg,var(--bg1),var(--bg2));
+    transition: background 1s linear;
+  }
+
+  /* animated subtle shifting lavender gradient */
+  .animated-bg{
+    position:fixed;inset:0;z-index:0;
+    background: radial-gradient(1200px circle at 10% 20%, rgba(155,111,214,0.12), transparent 10%),
+                radial-gradient(900px circle at 80% 80%, rgba(198,174,255,0.09), transparent 10%),
+                linear-gradient(120deg,var(--bg1),var(--bg2));
+    transition: all 1100ms linear;
+    filter: blur(10px);
+    transform: scale(1.02);
+  }
+
+  .card{
+    z-index:1;
+    width:min(880px,94vw);
+    max-width:960px;
+    background: rgba(255,255,255,0.55);
+    border-radius:22px;
+    box-shadow: 0 10px 40px rgba(75,43,90,0.12);
+    padding:28px;
+    display:flex;
+    gap:24px;
+    align-items:center;
+    justify-content:center;
+    backdrop-filter: blur(6px) saturate(1.05);
+    border:1px solid rgba(155,111,214,0.08);
+  }
+
+  .left{
+    min-width:360px;
+    text-align:center;
+    padding:18px;
+  }
+  h1{
+    color:var(--text);
+    margin:6px 0 8px;
+    font-size:28px;
+    letter-spacing:0.4px;
+  }
+  p{color:#5d456b;margin:0 0 12px;font-size:15px}
+  .btns{display:flex;gap:10px;justify-content:center;margin-top:10px}
+  .btn{
+    background:linear-gradient(180deg,var(--accent), #7f4fc2);
+    color:#fff;padding:10px 14px;border-radius:12px;border:none;cursor:pointer;font-weight:600;
+    box-shadow:0 6px 16px rgba(155,111,214,0.22);
+  }
+  .btn:active{transform:translateY(1px)}
+
+  /* scene */
+  .scene{position:relative;width:420px;height:320px;display:grid;place-items:center}
+  svg.cake{width:280px;height:220px;overflow:visible}
+
+  /* cake parts initial styles */
+  .cake-base{transform-origin:50% 50%; transition: transform 700ms cubic-bezier(.2,.9,.2,1)}
+  .cake-top{transform-origin:50% 100%; transition: transform 700ms cubic-bezier(.2,.9,.2,1)}
+  .cherry{transition: transform 700ms cubic-bezier(.2,.9,.2,1)}
+  .sprinkle{opacity:0;transition:opacity 500ms ease}
+
+  /* burst (applied via JS) */
+  .burst .cake-top{transform: translateY(-140px) rotate(-8deg)}
+  .burst .cake-left{transform: translateX(-160px) rotate(-25deg)}
+  .burst .cake-right{transform: translateX(160px) rotate(25deg)}
+  .burst .cherry{transform: translateY(-190px)}
+  .burst .sprinkle{opacity:1;transform:translateY(-80px);transition: transform 900ms cubic-bezier(.08,.9,.2,1) }
+
+  /* hidden text reveal */
+  .message{
+    position:absolute;
+    z-index:0;
+    top:calc(50% - 10px);
+    left:50%;
+    transform:translate(-50%,60%) scale(0.9);
+    font-size:44px;
+    font-weight:800;
+    color:var(--accent);
+    letter-spacing:1px;
+    opacity:0;
+    text-shadow: 0 6px 30px rgba(155,111,214,0.12);
+    transition: all 700ms cubic-bezier(.18,.9,.2,1);
+    pointer-events:none;
+  }
+  .burst .message{opacity:1;transform:translate(-50%,-10%) scale(1.05)}
+
+  /* confetti canvas sits above bg */
+  canvas#confetti{position:absolute;inset:0;width:100%;height:100%;z-index:2;pointer-events:none}
+
+  /* small responsive tweaks */
+  @media (max-width:720px){
+    .card{flex-direction:column;padding:18px}
+    .left{min-width:unset}
+    .scene{width:320px;height:240px}
+    .message{font-size:32px}
+  }
+</style>
+</head>
+<body>
+  <div class="animated-bg" id="bg"></div>
+
+  <div class="card" role="region" aria-label="Birthday surprise">
+    <div class="left">
+      <h1>Happy Birthday 🎉</h1>
+      <p>Tap the cake to make it burst — lavender confetti and wishes just for you.</p>
+      <div class="btns">
+        <button class="btn" id="surpriseBtn">Surprise!</button>
+        <button class="btn" id="autoBtn" style="background:linear-gradient(180deg,#fff,#f0e9ff);color:var(--accent);box-shadow:none;border:1px solid rgba(155,111,214,0.12)">Auto (3s)</button>
+      </div>
+    </div>
+
+    <div class="scene" id="stage">
+      <!-- confetti canvas -->
+      <canvas id="confetti"></canvas>
+
+      <!-- message hidden under cake -->
+      <div class="message" id="message">HAPPY BIRTHDAY!</div>
+
+      <!-- SVG cake -->
+      <svg class="cake" viewBox="0 0 360 280" xmlns="http://www.w3.org/2000/svg" id="cakeSvg" role="img" aria-label="Birthday cake">
+        <!-- shadow plate -->
+        <ellipse cx="180" cy="230" rx="120" ry="18" fill="rgba(75,43,90,0.06)"></ellipse>
+
+        <!-- left chunk -->
+        <g class="cake-left" id="leftChunk">
+          <path class="cake-base" d="M80 160 q12 36 40 36 h22 v-72 q-36 -10 -84 0 z" fill="#fff7fb" stroke="#efddf8" stroke-width="2"></path>
+          <path class="cake-top" d="M80 140 q18 -30 40 -30 h22 q-8 18 -40 30 z" fill="#f6e9ff" stroke="#e7d8ff" stroke-width="2"></path>
+        </g>
+
+        <!-- right chunk -->
+        <g class="cake-right" id="rightChunk">
+          <path class="cake-base" d="M280 160 q-12 36 -40 36 h-22 v-72 q36 -10 84 0 z" fill="#fff7fb" stroke="#efddf8" stroke-width="2"></path>
+          <path class="cake-top" d="M280 140 q-18 -30 -40 -30 h-22 q8 18 40 30 z" fill="#f6e9ff" stroke="#e7d8ff" stroke-width="2"></path>
+        </g>
+
+        <!-- center base -->
+        <g id="center">
+          <rect class="cake-base" x="120" y="160" width="120" height="64" rx="10" fill="#fff" stroke="#efddf8" stroke-width="2"></rect>
+          <!-- frosting stripes -->
+          <path d="M120 170 q40 -24 60 -6 q30 -16 60 6" fill="none" stroke="#eedbff" stroke-width="12" stroke-linecap="round"></path>
+
+          <!-- candles -->
+          <g transform="translate(160,120)">
+            <rect width="6" height="20" x="-18" y="-30" fill="#ffd8e6" rx="2"></rect>
+            <rect width="6" height="20" x="12" y="-30" fill="#ffd8e6" rx="2"></rect>
+
+            <!-- flames -->
+            <path d="M-15 -36 q6 -10 12 0 q-6 8 -12 0" fill="#ffd27b" stroke="#ffb84d" stroke-width="0.6"></path>
+            <path d="M15 -36 q6 -10 12 0 q-6 8 -12 0" fill="#ffd27b" stroke="#ffb84d" stroke-width="0.6"></path>
+          </g>
+        </g>
+
+        <!-- cherry on top that will fly up -->
+        <g class="cherry" id="cherry" transform="translate(180,92)">
+          <circle r="8" fill="#ff5b8a" stroke="#b83a5f" stroke-width="1.2"></circle>
+          <path d="M-3 -4 q6 -8 12 0" fill="none" stroke="#7a3a4a" stroke-width="1.6" stroke-linecap="round"></path>
+        </g>
+
+        <!-- sprinkle bits (hidden until burst) -->
+        <g id="sprinkles" transform="translate(180,170)">
+          <circle class="sprinkle" cx="-30" cy="6" r="3" fill="#f7b3ff"></circle>
+          <circle class="sprinkle" cx="-10" cy="-6" r="3" fill="#d1b3ff"></circle>
+          <circle class="sprinkle" cx="8" cy="8" r="3" fill="#b9f0ff"></circle>
+          <rect class="sprinkle" x="20" y="-4" width="4" height="7" rx="1" fill="#ffd7ff"></rect>
+          <rect class="sprinkle" x="-18" y="12" width="4" height="7" rx="1" fill="#e3c2ff"></rect>
+        </g>
+      </svg>
+    </div>
+  </div>
+
+<script>
+/* --- background color rotation (lavender palette) --- */
+const paletteSets = [
+  ['#efe7fb','#e6d9fa','#f5eefe'],
+  ['#f7eefc','#efe6fb','#f3e9ff'],
+  ['#f2eefe','#efe8fb','#f8f5ff'],
+  ['#f6eeff','#efe1fb','#f9f2ff']
+];
+let bi=0;
+function rotateBG(){
+  bi = (bi+1) % paletteSets.length;
+  const [a,b,c] = paletteSets[bi];
+  document.documentElement.style.setProperty('--bg1', a);
+  document.documentElement.style.setProperty('--bg2', b);
+  document.documentElement.style.setProperty('--bg3', c);
+  // slightly update animated-bg gradient for depth
+  const bg = document.getElementById('bg');
+  bg.style.background = `radial-gradient(900px circle at 20% 20%, rgba(155,111,214,0.08), transparent 10%),
+                        radial-gradient(700px circle at 85% 75%, rgba(198,174,255,0.06), transparent 10%),
+                        linear-gradient(120deg, ${a}, ${b})`;
+}
+setInterval(rotateBG, 2400);
+rotateBG();
+
+/* --- cake burst logic & confetti --- */
+const stage = document.getElementById('stage');
+const cakeSvg = document.getElementById('cakeSvg');
+const surpriseBtn = document.getElementById('surpriseBtn');
+const autoBtn = document.getElementById('autoBtn');
+const message = document.getElementById('message');
+const confettiCanvas = document.getElementById('confetti');
+confettiCanvas.width = window.innerWidth;
+confettiCanvas.height = window.innerHeight;
+const ctx = confettiCanvas.getContext('2d');
+
+let burst = false;
+function doBurst(){
+  if(burst) return;
+  burst = true;
+  stage.classList.add('burst');
+
+  // play tiny pop sound using WebAudio (no external file)
+  try{
+    const ctxAudio = new (window.AudioContext || window.webkitAudioContext)();
+    const o = ctxAudio.createOscillator();
+    const g = ctxAudio.createGain();
+    o.type='sine'; o.frequency.setValueAtTime(720, ctxAudio.currentTime);
+    o.frequency.exponentialRampToValueAtTime(450, ctxAudio.currentTime+0.25);
+    g.gain.setValueAtTime(0.0001, ctxAudio.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.12, ctxAudio.currentTime+0.02);
+    g.gain.exponentialRampToValueAtTime(0.001, ctxAudio.currentTime+0.35);
+    o.connect(g); g.connect(ctxAudio.destination); o.start(); o.stop(ctxAudio.currentTime+0.36);
+  }catch(e){/* audio may be blocked on some browsers */}
+
+  // run confetti
+  runConfetti();
+}
+
+/* clicking cake or button triggers */
+cakeSvg.addEventListener('click', doBurst);
+surpriseBtn.addEventListener('click', doBurst);
+
+autoBtn.addEventListener('click', () => {
+  autoBtn.disabled = true;
+  setTimeout(doBurst, 3000);
+});
+
+/* --- simple confetti particle animation --- */
+const confetti = [];
+const colors = ['#d9b3ff','#e9d7ff','#ffd7ff','#e3c2ff','#c9f0ff','#f7b3ff','#9b6fd6'];
+function rand(min,max){return Math.random()*(max-min)+min;}
+function spawnConfetti(){
+  for(let i=0;i<90;i++){
+    confetti.push({
+      x: window.innerWidth*0.5 + rand(-140,140),
+      y: window.innerHeight*0.45 + rand(-20,40),
+      vx: rand(-6,6),
+      vy: rand(-12,-2),
+      size: Math.round(rand(6,12)),
+      color: colors[Math.floor(rand(0,colors.length))],
+      rot: rand(0,360),
+      velRot: rand(-6,6),
+      life: rand(70,160)
+    });
+  }
+}
+
+function runConfetti(){
+  spawnConfetti();
+  let done=false;
+  function tick(){
+    ctx.clearRect(0,0,confettiCanvas.width,confettiCanvas.height);
+    for(let i=confetti.length-1;i>=0;i--){
+      const p = confetti[i];
+      p.x += p.vx;
+      p.y += p.vy;
+      p.vy += 0.35; // gravity
+      p.rot += p.velRot;
+      p.life--;
+      ctx.save();
+      ctx.translate(p.x,p.y);
+      ctx.rotate(p.rot * Math.PI/180);
+      ctx.fillStyle = p.color;
+      ctx.fillRect(-p.size/2, -p.size/2, p.size, p.size*0.6);
+      ctx.restore();
+      if(p.y > window.innerHeight + 60 || p.life <= 0) confetti.splice(i,1);
+    }
+    if(confetti.length>0) requestAnimationFrame(tick);
+    else done=true;
+  }
+  tick();
+
+  // reveal message after a short delay
+  setTimeout(()=> {
+    message.style.transform = 'translate(-50%,-8%) scale(1.05)';
+    message.style.opacity = 1;
+  }, 420);
+}
+
+/* resize canvas on window change */
+window.addEventListener('resize', () => {
+  confettiCanvas.width = window.innerWidth;
+  confettiCanvas.height = window.innerHeight;
+});
+
+/* small accessibility: allow keyboard trigger via Enter on btn */
+surpriseBtn.addEventListener('keyup', (e)=>{ if(e.key==='Enter') doBurst(); });
+
+</script>
+</body>
+</html>
